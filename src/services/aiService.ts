@@ -18,7 +18,7 @@ export async function summarizeArticle(title: string, content: string, token?: s
     const data = await response.json();
     return data.summary || "Could not generate summary.";
   } catch (error) {
-    console.error("Gemini Summarization Error:", error);
+    console.error("AI Summarization Error:", error);
     throw error;
   }
 }
@@ -46,7 +46,7 @@ export async function checkAuthenticity(title: string, content: string, token?: 
       reason: data.reason || "Could not determine authenticity."
     };
   } catch (error) {
-    console.error("Gemini Authenticity Error:", error);
+    console.error("AI Authenticity Error:", error);
     throw error;
   }
 }

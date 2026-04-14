@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { NewsArticle } from "./types";
 import { fetchTopHeadlines } from "./services/newsService";
-import { summarizeArticle, checkAuthenticity } from "./services/geminiService";
+import { summarizeArticle, checkAuthenticity } from "./services/aiService";
 import { NewsCard } from "./components/NewsCard";
 import { AnalysisModal } from "./components/AnalysisModal";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -10,6 +10,8 @@ import { toast } from "sonner";
 import { Newspaper, RefreshCw, Search, AlertTriangle, LogOut, User } from "lucide-react";
 import { motion } from "motion/react";
 import { GoogleLogin, googleLogout } from '@react-oauth/google';
+import { jwtDecode } from "jwt-decode";
+import { ProfileView } from "./components/ProfileView";
 
 export default function App() {
   const [articles, setArticles] = useState<NewsArticle[]>([]);
@@ -25,13 +27,30 @@ export default function App() {
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
 
-  // Auth state
+  // Navigation and Auth state
+  const [activeView, setActiveView] = useState<'news' | 'profile'>('news');
   const [token, setToken] = useState<string | null>(localStorage.getItem("google_token"));
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    if (token) {
+      try {
+        const decoded = jwtDecode(token);
+        setUser(decoded);
+      } catch (e) {
+        console.error("Failed to decode token", e);
+        localStorage.removeItem("google_token");
+        setToken(null);
+      }
+    }
+  }, [token]);
 
   const handleLoginSuccess = (credentialResponse: any) => {
     const newToken = credentialResponse.credential;
     if (newToken) {
       setToken(newToken);
+      const decoded = jwtDecode(newToken);
+      setUser(decoded);
       localStorage.setItem("google_token", newToken);
       toast.success("Signed in with Google");
     }
@@ -40,6 +59,8 @@ export default function App() {
   const handleLogout = () => {
     googleLogout();
     setToken(null);
+    setUser(null);
+    setActiveView('news');
     localStorage.removeItem("google_token");
     toast.info("Signed out");
   };
@@ -157,20 +178,32 @@ export default function App() {
             <button 
               onClick={() => loadNews(true)}
               disabled={refreshing || loading}
-              className="p-2 hover:bg-muted rounded-full transition-colors disabled:opacity-50"
+              className={`p-2 rounded-full transition-colors disabled:opacity-50 ${activeView === 'news' ? 'hover:bg-muted' : 'hidden'}`}
               title="Refresh News"
             >
               <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
             </button>
 
+            {token && (
+              <button 
+                onClick={() => setActiveView(activeView === 'news' ? 'profile' : 'news')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-full transition-all text-sm font-medium ${
+                  activeView === 'profile' ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80'
+                }`}
+              >
+                <User className="w-4 h-4" />
+                <span className="hidden md:inline">{activeView === 'news' ? 'Profile' : 'News'}</span>
+              </button>
+            )}
+
             {token ? (
               <button 
                 onClick={handleLogout}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted hover:bg-muted/80 transition-all text-sm font-medium"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-destructive/10 text-destructive hover:bg-destructive/20 transition-all text-sm font-medium"
                 title="Sign Out"
               >
                 <LogOut className="w-4 h-4" />
-                <span className="hidden md:inline">Sign Out</span>
+                <span className="hidden md:inline">Exit</span>
               </button>
             ) : (
               <div className="scale-90 origin-right">
@@ -190,65 +223,69 @@ export default function App() {
       <main className="container mx-auto px-4 py-8">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
           <div>
-            <h2 className="text-3xl font-extrabold tracking-tight mb-2">Latest Headlines</h2>
+            <h2 className="text-3xl font-extrabold tracking-tight mb-2">India News Headlines</h2>
             <p className="text-muted-foreground">
               Stay informed with real-time news and AI-powered insights.
             </p>
           </div>
         </div>
 
-        {error ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="bg-destructive/10 p-4 rounded-full mb-4">
-              <AlertTriangle className="w-12 h-12 text-destructive" />
-            </div>
-            <h3 className="text-xl font-semibold mb-2">Something went wrong</h3>
-            <p className="text-muted-foreground max-w-md mb-6">{error}</p>
-            <button 
-              onClick={() => loadNews()}
-              className="bg-primary text-primary-foreground px-6 py-2 rounded-md font-medium hover:bg-primary/90 transition-colors"
-            >
-              Try Again
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {loading ? (
-              Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="space-y-3">
-                  <Skeleton className="aspect-video w-full rounded-xl" />
-                  <Skeleton className="h-6 w-3/4" />
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-full" />
-                  <div className="flex gap-2 pt-2">
-                    <Skeleton className="h-9 flex-1" />
-                    <Skeleton className="h-9 flex-1" />
-                  </div>
-                </div>
-              ))
-            ) : filteredArticles.length > 0 ? (
-              filteredArticles.map((article, index) => (
-                <motion.div
-                  key={`${article.url}-${index}`}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                >
-                  <NewsCard 
-                    article={article} 
-                    onSummarize={handleSummarize}
-                    onCheckAuthenticity={handleVerify}
-                  />
-                </motion.div>
-              ))
-            ) : (
-              <div className="col-span-full flex flex-col items-center justify-center py-20 text-center">
-                <Search className="w-12 h-12 text-muted-foreground mb-4" />
-                <h3 className="text-xl font-semibold mb-2">No articles found</h3>
-                <p className="text-muted-foreground">Try adjusting your search query.</p>
+        {activeView === 'news' ? (
+          error ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="bg-destructive/10 p-4 rounded-full mb-4">
+                <AlertTriangle className="w-12 h-12 text-destructive" />
               </div>
-            )}
-          </div>
+              <h3 className="text-xl font-semibold mb-2">Something went wrong</h3>
+              <p className="text-muted-foreground max-w-md mb-6">{error}</p>
+              <button 
+                onClick={() => loadNews()}
+                className="bg-primary text-primary-foreground px-6 py-2 rounded-md font-medium hover:bg-primary/90 transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {loading ? (
+                Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="space-y-3">
+                    <Skeleton className="aspect-video w-full rounded-xl" />
+                    <Skeleton className="h-6 w-3/4" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-full" />
+                    <div className="flex gap-2 pt-2">
+                      <Skeleton className="h-9 flex-1" />
+                      <Skeleton className="h-9 flex-1" />
+                    </div>
+                  </div>
+                ))
+              ) : filteredArticles.length > 0 ? (
+                filteredArticles.map((article, index) => (
+                  <motion.div
+                    key={`${article.url}-${index}`}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                  >
+                    <NewsCard 
+                      article={article} 
+                      onSummarize={handleSummarize}
+                      onCheckAuthenticity={handleVerify}
+                    />
+                  </motion.div>
+                ))
+              ) : (
+                <div className="col-span-full flex flex-col items-center justify-center py-20 text-center">
+                  <Search className="w-12 h-12 text-muted-foreground mb-4" />
+                  <h3 className="text-xl font-semibold mb-2">No articles found</h3>
+                  <p className="text-muted-foreground">Try adjusting your search query.</p>
+                </div>
+              )}
+            </div>
+          )
+        ) : (
+          <ProfileView user={user} onLogout={handleLogout} />
         )}
       </main>
 
@@ -267,7 +304,7 @@ export default function App() {
       <footer className="border-t py-8 mt-12 bg-muted/30">
         <div className="container mx-auto px-4 text-center">
           <p className="text-sm text-muted-foreground">
-            &copy; {new Date().getFullYear()} NewsVerify. Powered by Gemini AI & NewsAPI.
+            &copy; {new Date().getFullYear()} NewsVerify. Powered by Hugging Face & NewsAPI.
           </p>
         </div>
       </footer>

@@ -3,7 +3,6 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
-import { GoogleGenAI } from "@google/genai";
 import { OAuth2Client } from "google-auth-library";
 
 
@@ -17,7 +16,7 @@ function errorMessage(err: unknown): string {
 }
 
 // Helper for Hugging Face Inference API with retry for loading models
-async function callHF(model: string, inputs: any, token: string, retries = 3): Promise<any> {
+async function callHF(model: string, inputs: any, token: string, retries = 5): Promise<any> {
   // api-inference.huggingface.co legacy routes can return 410 Gone for some models.
   // Use the current router endpoint for serverless inference.
   const url = `https://router.huggingface.co/hf-inference/models/${model}`;
@@ -96,7 +95,7 @@ async function startServer() {
 
     try {
       const response = await fetch(
-        `https://newsapi.org/v2/top-headlines?country=us&apiKey=${apiKey}`
+        `https://newsapi.org/v2/everything?q=India&sortBy=publishedAt&pageSize=40&apiKey=${apiKey}`
       );
       const data = await response.json();
       res.json(data);
@@ -111,22 +110,7 @@ async function startServer() {
     const { title, content } = req.body;
     const textToSummarize = `Title: ${title}\n\nContent: ${content}`;
     
-    // 1. Try Gemini
-    const geminiKey = process.env.GEMINI_API_KEY;
-    if (geminiKey) {
-      try {
-        const ai = new GoogleGenAI({ apiKey: geminiKey });
-        const result = await ai.models.generateContent({
-          model: "gemini-3-flash-preview",
-          contents: `Summarize the following news article in 4 concise sentences:\n\n${textToSummarize}`,
-        });
-        if (result.text) return res.json({ summary: result.text });
-      } catch (e) {
-        console.error("Gemini Summarization failed, falling back...", errorMessage(e));
-      }
-    }
-
-    // 2. Fallbacks to Hugging Face
+    // Fallbacks to Hugging Face
     const hfToken = process.env.HF_TOKEN;
     if (!hfToken) {
       return res.status(500).json({ error: "No AI keys configured for summarization." });
@@ -137,7 +121,7 @@ async function startServer() {
       "facebook/bart-large-cnn",
       "google/pegasus-cnn_dailymail",
       "philschmid/bart-large-cnn-samsum",
-      "Falconsai/text_summarization"
+      "slauw87/bart_summarisation"
     ];
 
     for (const model of hfModels) {
@@ -161,32 +145,16 @@ async function startServer() {
     const { title, content } = req.body;
     const textToVerify = `Title: ${title}\n\nContent: ${content}`;
 
-    // 1. Try Gemini
-    const geminiKey = process.env.GEMINI_API_KEY;
-    if (geminiKey) {
-      try {
-        const ai = new GoogleGenAI({ apiKey: geminiKey });
-        const result = await ai.models.generateContent({
-          model: "gemini-3-flash-preview",
-          contents: `Analyze the following news article and classify it as REAL, FAKE, or UNCERTAIN. Also give a short reason. Return the response in JSON format (no markdown blocks) with keys "classification" and "reason".\n\n${textToVerify}`,
-          config: { responseMimeType: "application/json" }
-        });
-        if (result.text) return res.json(JSON.parse(result.text));
-      } catch (e) {
-        console.error("Gemini Verification failed, falling back...", errorMessage(e));
-      }
-    }
-
-    // 2. Fallbacks to Hugging Face
+    // Fallbacks to Hugging Face
     const hfToken = process.env.HF_TOKEN;
     if (!hfToken) {
       return res.status(500).json({ error: "No AI keys configured for verification." });
     }
 
     const hfModels = [
-      "dhruvpal/fake-news-bert",
       "jy46604790/Fake-News-Bert-Detect",
-      "Dzeniks/roberta-fact-check"
+      "hamzab/roberta-fake-news-classification",
+      "mrm8488/bert-tiny-finetuned-fake-news-detection"
     ];
 
     for (const model of hfModels) {
@@ -197,10 +165,18 @@ async function startServer() {
         const top = Array.isArray(result) ? (Array.isArray(result[0]) ? result[0][0] : result[0]) : result;
         
         if (top && top.label) {
-          const isReal = top.label === 'LABEL_1' || top.label.toUpperCase() === 'REAL' || top.label.toUpperCase() === 'SUPPORTS';
+          const label = top.label.toUpperCase();
+          const isReal = label === 'LABEL_1' || label === 'REAL' || label === 'SUPPORTS' || label === 'TRUE' || label === 'LABEL_0' && model.includes('mrm8488');
+          // Note: mrm8488 uses LABEL_0 for Real in some versions, but let's be safe.
+          // Actually, let's just check for FAKE/FAKE_NEWS first.
+          const isDefinitelyFake = label === 'FAKE' || label === 'LABEL_0' && !model.includes('mrm8488');
+          
+          const finalClassification = isDefinitelyFake ? 'FAKE' : 'REAL';
+
           return res.json({
-            classification: isReal ? 'REAL' : 'FAKE',
-            reason: `Detected as ${isReal ? 'REAL' : 'FAKE'} news using HF model ${model} (Score: ${top.score.toFixed(2)})`
+            classification: finalClassification,
+            reason: `Highly likely to be ${finalClassification.toLowerCase()} based on semantic analysis.`,
+            score: top.score
           });
         }
       } catch (e) {

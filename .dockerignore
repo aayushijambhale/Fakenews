@@ -1,0 +1,9 @@
+node_modules
+dist
+.git
+.env
+Dockerfile
+Jenkinsfile
+test_hf.js
+test_news.js
+README.md
