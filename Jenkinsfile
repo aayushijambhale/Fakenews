@@ -3,8 +3,7 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = "newsverify-app"
-        DOCKER_TAG = "${env.BUILD_NUMBER}"
-        // Add Docker to Path and set Docker Host for Windows (IPv4)
+        // Add Docker to Path and set Docker Host for Windows
         PATH = "C:\\Program Files\\Docker\\Docker\\resources\\bin;${env.PATH}"
         DOCKER_HOST = "tcp://127.0.0.1:2375"
     }
@@ -19,9 +18,8 @@ pipeline {
         stage('Prepare Environment') {
             steps {
                 script {
-                    // Assuming 'env-aayu' is a Secret File credential in Jenkins
+                    // Fetching the 'env-aayu' Secret File from Jenkins Credentials
                     withCredentials([file(credentialsId: 'env-aayu', variable: 'ENV_FILE')]) {
-                        // Use bat for Windows and 'copy' instead of 'cp'
                         bat "copy /Y \"${ENV_FILE}\" .env"
                     }
                 }
@@ -30,30 +28,21 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                script {
-                    bat "docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} ."
-                    bat "docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest"
-                }
-            }
-        }
-
-        stage('Test') {
-            steps {
-                echo 'Skipping tests as none are defined...'
+                // Build only ONE image with the 'latest' tag
+                bat "docker build -t ${DOCKER_IMAGE}:latest ."
             }
         }
 
         stage('Deploy') {
             steps {
-                script {
-                    echo "Deploying ${DOCKER_IMAGE}:${DOCKER_TAG}..."
-                }
+                echo "Deployment stage: Image ${DOCKER_IMAGE}:latest is ready."
             }
         }
     }
 
     post {
         always {
+            // Clean up the temporary .env file
             bat "del /f .env 2>nul || exit 0"
             cleanWs()
         }
