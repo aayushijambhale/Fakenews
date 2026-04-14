@@ -18,7 +18,8 @@ pipeline {
                 script {
                     // Assuming 'env-aayu' is a Secret File credential in Jenkins
                     withCredentials([file(credentialsId: 'env-aayu', variable: 'ENV_FILE')]) {
-                        sh "cp ${ENV_FILE} .env"
+                        // Use bat for Windows and 'copy' instead of 'cp'
+                        bat "copy /Y \"${ENV_FILE}\" .env"
                     }
                 }
             }
@@ -27,15 +28,14 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    sh "docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} ."
-                    sh "docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest"
+                    bat "docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} ."
+                    bat "docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest"
                 }
             }
         }
 
         stage('Test') {
             steps {
-                // Add your test commands here, e.g., npm test
                 echo 'Skipping tests as none are defined...'
             }
         }
@@ -43,11 +43,7 @@ pipeline {
         stage('Deploy') {
             steps {
                 script {
-                    // Example deployment step: restart a docker-compose service or container
                     echo "Deploying ${DOCKER_IMAGE}:${DOCKER_TAG}..."
-                    // sh "docker stop newsverify || true"
-                    // sh "docker rm newsverify || true"
-                    // sh "docker run -d --name newsverify -p 3000:3000 ${DOCKER_IMAGE}:${DOCKER_TAG}"
                 }
             }
         }
@@ -55,6 +51,7 @@ pipeline {
 
     post {
         always {
+            bat "del /f .env 2>nul || exit 0"
             cleanWs()
         }
         success {
