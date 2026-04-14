@@ -3,8 +3,9 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = "newsverify-app"
-        // Add Docker to Path and set Docker Host for Windows
-        PATH = "C:\\Program Files\\Docker\\Docker\\resources\\bin;${env.PATH}"
+        DOCKER_TAG = "${env.BUILD_NUMBER}"
+        // Add Windows System32 and Docker to Path for Jenkins
+        PATH = "C:\\Windows\\System32;C:\\Windows;C:\\Program Files\\Docker\\Docker\\resources\\bin;${env.PATH}"
         DOCKER_HOST = "tcp://127.0.0.1:2375"
     }
 
