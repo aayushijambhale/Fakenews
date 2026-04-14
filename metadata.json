@@ -1,0 +1,6 @@
+{
+  "name": "News Summarization and Fake News Detection System",
+  "description": "A modern full-stack application that fetches real-time news, provides AI-powered summaries, and detects potential fake news using Gemini AI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
