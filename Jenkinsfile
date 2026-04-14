@@ -4,6 +4,8 @@ pipeline {
     environment {
         DOCKER_IMAGE = "newsverify-app"
         DOCKER_TAG = "${env.BUILD_NUMBER}"
+        // Add Docker to Path for Jenkins on Windows
+        PATH = "C:\\Program Files\\Docker\\Docker\\resources\\bin;${env.PATH}"
     }
 
     stages {
