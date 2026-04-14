@@ -38,7 +38,17 @@ pipeline {
 
         stage('Deploy') {
             steps {
-                echo "Deployment stage: Image ${DOCKER_IMAGE}:latest is ready."
+                script {
+                    echo "Deploying ${DOCKER_IMAGE}:latest..."
+                    // Stop and remove existing container if it exists
+                    bat "docker stop newsverify || exit 0"
+                    bat "docker rm newsverify || exit 0"
+                    
+                    // Run the new container, passing the .env file fetched from credentials
+                    bat "docker run -d --name newsverify -p 3000:3000 --env-file .env ${DOCKER_IMAGE}:latest"
+                    
+                    echo "Successfully deployed! Access the app at http://localhost:3000"
+                }
             }
         }
     }
