@@ -20,7 +20,7 @@ pipeline {
                 script {
                     // Fetching the 'env-aayu' Secret File from Jenkins Credentials
                     withCredentials([file(credentialsId: 'env-aayu', variable: 'ENV_FILE')]) {
-                        bat "copy /Y \"${ENV_FILE}\" .env"
+                        bat 'copy /Y "%ENV_FILE%" .env'
                     }
                 }
             }
@@ -30,13 +30,10 @@ pipeline {
             steps {
                 script {
                     withCredentials([file(credentialsId: 'env-aayu', variable: 'ENV_FILE')]) {
-                        // Extract VITE_GOOGLE_CLIENT_ID from the secret file to pass it to the build
-                        // We use a temporary batch command to extract the value
-                        bat """
-                            docker image rm ${DOCKER_IMAGE}:latest || exit 0
-                            for /F "tokens=2 delims==" %%i in ('findstr VITE_GOOGLE_CLIENT_ID "${ENV_FILE}"') do set GOOGLE_ID=%%i
-                            docker build --build-arg VITE_GOOGLE_CLIENT_ID=%GOOGLE_ID% -t ${DOCKER_IMAGE}:latest .
-                        """
+                        // Use single quotes for the bat command to avoid insecure interpolation
+                        // This allows Windows to resolve %ENV_FILE% safely
+                        bat 'docker image rm %DOCKER_IMAGE%:latest || exit 0'
+                        bat 'for /F "tokens=2 delims==" %%i in (\'findstr VITE_GOOGLE_CLIENT_ID "%ENV_FILE%"\') do set GOOGLE_ID=%%i & docker build --build-arg VITE_GOOGLE_CLIENT_ID=%GOOGLE_ID% -t %DOCKER_IMAGE%:latest .'
                     }
                 }
             }
@@ -47,11 +44,11 @@ pipeline {
                 script {
                     echo "Deploying ${DOCKER_IMAGE}:latest..."
                     // Stop and remove existing container if it exists
-                    bat "docker stop newsverify || exit 0"
-                    bat "docker rm newsverify || exit 0"
+                    bat 'docker stop newsverify || exit 0'
+                    bat 'docker rm newsverify || exit 0'
                     
                     // Run the new container, passing the .env file fetched from credentials
-                    bat "docker run -d --name newsverify -p 3000:3000 --env-file .env ${DOCKER_IMAGE}:latest"
+                    bat 'docker run -d --name newsverify -p 3000:3000 --env-file .env %DOCKER_IMAGE%:latest'
                     
                     echo "Successfully deployed! Access the app at http://localhost:3000"
                 }
