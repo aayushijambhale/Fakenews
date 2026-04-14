@@ -8,6 +8,12 @@ import { OAuth2Client } from "google-auth-library";
 
 dotenv.config();
 
+// Debug logs for environment loading
+console.log("[Config] Checking environment variables...");
+console.log(`[Config] NEWS_API_KEY: ${process.env.NEWS_API_KEY ? "Present" : "MISSING"}`);
+console.log(`[Config] HF_TOKEN: ${process.env.HF_TOKEN ? "Present" : "MISSING"}`);
+console.log(`[Config] VITE_GOOGLE_CLIENT_ID: ${process.env.VITE_GOOGLE_CLIENT_ID ? "Present" : "MISSING"}`);
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -93,11 +99,17 @@ async function startServer() {
       return res.status(500).json({ error: "NEWS_API_KEY is not configured" });
     }
 
+    console.log(`[API] Fetching news for query: India`);
     try {
       const response = await fetch(
         `https://newsapi.org/v2/everything?q=India&sortBy=publishedAt&pageSize=40&apiKey=${apiKey}`
       );
+      console.log(`[API] NewsAPI response status: ${response.status}`);
       const data = await response.json();
+      if (data.status !== "ok") {
+        console.error(`[API] NewsAPI error: ${data.message}`);
+        return res.status(400).json({ error: data.message });
+      }
       res.json(data);
     } catch (error) {
       console.error("Error fetching news:", error);
