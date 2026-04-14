@@ -73,14 +73,16 @@ export default function App() {
     setError(null);
     try {
       const data = await fetchTopHeadlines();
-      if (data.status === "ok") {
+      // data is NewsResponse, assuming it has articles
+      if (data.articles) {
         setArticles(data.articles);
       } else {
-        throw new Error("Failed to load news");
+        throw new Error("No articles found in the response.");
       }
-    } catch (err) {
-      setError("Unable to fetch news. Please check your API key or try again later.");
-      toast.error("Failed to load news");
+    } catch (err: any) {
+      console.error("News Load Error:", err);
+      setError(err.message || "Unable to fetch news. Please check your API key.");
+      toast.error(err.message || "Failed to load news");
     } finally {
       setLoading(false);
       setRefreshing(false);
