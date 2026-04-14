@@ -28,8 +28,11 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                // Build only ONE image with the 'latest' tag
-                bat "docker build -t ${DOCKER_IMAGE}:latest ."
+                script {
+                    // Clear the previous image to ensure a fresh build
+                    bat "docker image rm ${DOCKER_IMAGE}:latest || exit 0"
+                    bat "docker build -t ${DOCKER_IMAGE}:latest ."
+                }
             }
         }
 
@@ -42,8 +45,9 @@ pipeline {
 
     post {
         always {
-            // Clean up the temporary .env file
+            // Clean up the temporary .env file and dangling docker images
             bat "del /f .env 2>nul || exit 0"
+            bat "docker image prune -f || exit 0"
             cleanWs()
         }
         success {
