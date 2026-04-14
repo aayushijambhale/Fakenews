@@ -4,9 +4,9 @@ pipeline {
     environment {
         DOCKER_IMAGE = "newsverify-app"
         DOCKER_TAG = "${env.BUILD_NUMBER}"
-        // Add Docker to Path and set Docker Host for Windows
+        // Add Docker to Path and set Docker Host for Windows (IPv4)
         PATH = "C:\\Program Files\\Docker\\Docker\\resources\\bin;${env.PATH}"
-        DOCKER_HOST = "tcp://localhost:2375"
+        DOCKER_HOST = "tcp://127.0.0.1:2375"
     }
 
     stages {
